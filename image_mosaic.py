@@ -3,7 +3,7 @@ import imageio
 import cv2 as CV
 
 from PIL import Image
-
+from hw3 import track_object, visualize
 
 def bilinear_interp(image, points):
     """Given an image and an array of row/col (Y/X) points, perform bilinear
@@ -42,7 +42,37 @@ def load_image(filename):
 
 def project_to_cyl(image, s, k1, k2):
     corners = np.array([(0, 0), (image.shape[1], 0),  (image.shape[1], image.shape[0]), (0, image.shape[0])])
-    
+    xc = image.shape[1] / 2
+    yc = image.shape[0] / 2
+
+    pts = np.mgrid[:image.shape[0], :image.shape[1]
+          ].transpose(1, 2, 0).astype(np.float32)
+
+
+    # convert from cylindrical coordinates to h/theta
+    theta = (pts[:, 0] - xc) / s
+    h = (pts[:, 1] - yc) / s
+
+    # get point on the cylinder
+    x_hat = np.sin(theta)
+    y_hat = h
+    z_hat = np.cos(theta)
+
+    # normalize cylinder to input image
+    x_norm = x_hat / z_hat
+    y_norm = y_hat / z_hat
+
+    r2 = x_norm**2 + y_norm**2
+
+    # apply radial distortion correction
+    x_distort = x_norm * (1 + k1 * r2 + k2 * r2**2)
+    y_distort = y_norm * (1 + k1 * r2 + k2 * r2 ** 2)
+
+    x = s * x_distort + xc
+    y = s * y_distort + yc
+
+    bilinear_interp(image,)
+
 
 if __name__ == "__main__":
     f = open('test_data/test_files.txt', 'r')
