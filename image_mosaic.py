@@ -4,7 +4,6 @@ import cv2 as CV
 from scipy.ndimage.filters import convolve
 
 from PIL import Image
-from hw3 import track_object, visualize
 
 #alamkin: adding lucas kanade algo from hw3.py and blending from hw2
 # -- BEGIN --
