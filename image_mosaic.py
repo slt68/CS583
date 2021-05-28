@@ -233,8 +233,7 @@ def load_image(filename):
     return np.array(im)
 
 
-def project_to_cyl(image, s, k1, k2, image_filename):
-    corners = np.array([(0, 0), (image.shape[1], 0),  (image.shape[1], image.shape[0]), (0, image.shape[0])])
+def project_to_cyl(image, s, k1, k2):
     xc = image.shape[1] / 2
     yc = image.shape[0] / 2
 
@@ -242,9 +241,13 @@ def project_to_cyl(image, s, k1, k2, image_filename):
     pts = np.mgrid[:image.shape[0], :image.shape[1]
           ].transpose(1, 2, 0).astype(np.float32)
 
+    # get cylindrical coordinates
+    x_cyl = pts[:, :, 1]
+    y_cyl = pts[:, :, 0]
+
     # convert from cylindrical coordinates to h/theta
-    theta = (pts[:, 0] - xc) / s
-    h = (pts[:, 1] - yc) / s
+    theta = (x_cyl - xc) / s
+    h = (y_cyl - yc) / s
 
     # get point on the cylinder
     x_hat = np.sin(theta)
@@ -266,29 +269,12 @@ def project_to_cyl(image, s, k1, k2, image_filename):
     x = s * x_distort + xc
     y = s * y_distort + yc
 
-    #alamkin - generate new image by getting pixel val from org image 
-    # create array of x y corrdinates
-    xy_coor = np.column_stack((np.array(x), np.array(y)))
+    # set original coordinates to warped coordinates
+    pts[:, :, 1] = x
+    pts[:, :, 0] = y
 
-    # iterate through image points and apply bilinear interpolation 
-    # (shouldn't output image be same size as input image?)
-    height = image.shape[0]
-    width = image.shape[1]
-    res = np.zeros((height, width))
-    idx=0
-    
-    '''
-    for i in range(height):
-        for j in range(width):
-                res[i][j] = bilinear_interp(image, xy_coor[idx])
-                idx++
-    '''
+    return bilinear_interp(image, pts)
 
-    # return res
-
-    # write reprojected image to file (temporary)
-    out_fn = image_filename.split(".")[0] + "_cyl." + image_filename.split(".")[1]
-    imageio.imwrite(out_fn, res)
     
 if __name__ == "__main__":
     f = open('test_data/test_files.txt', 'r')
@@ -296,23 +282,29 @@ if __name__ == "__main__":
     f.close()
     images = []
     img_fns = []
+    in_disps = []
     for line in lines:
-        images.append(load_image(line.strip().split(' ')[0]))
-        #alamkin - get image filenames (temporary)
-        img_fns.append(line.strip().split(' ')[0])
+        words = line.strip().split(' ')
+        file_name = words[0]
+        images.append(load_image(file_name))
+        img_fns.append(file_name)
+        in_disps.append([int(x) for x in words[1:]])
 
     f = open('test_data/test_params.txt')
     camera_params = f.readline().strip().split(' ')
     f.close()
 
     s = int(camera_params[0])
-    xc = float(camera_params[2])
-    yc = float(camera_params[3])
+    k1 = float(camera_params[2])
+    k2 = float(camera_params[3])
 
+    proj_imgs = []
     #alamkin - writing images to files first to ensure images are correctly reprojected
     #cyl_images = [project_to_cyl(x, s, xc, yc) for x in images]
-    for i, x in enumerate(images):
-        project_to_cyl(x, s, xc, yc, img_fns[i]) 
+    for i in range(len(images)):
+        proj_img = project_to_cyl(images[i], s, k1, k2)
+        proj_imgs.append(proj_img)
+        imageio.imwrite('{}_cyl.png'.format(img_fns[i]), proj_img.astype(np.uint8))
 
     #alamkin - align each per of images and blend with mask
     # (what should be initial displacement?)
