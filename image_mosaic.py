@@ -305,17 +305,17 @@ if __name__ == "__main__":
         proj_imgs.append(proj_img)
         imageio.imwrite('{}_cyl.png'.format(img_fns[i]), proj_img.astype(np.uint8))
 
-    #alamkin - align each per of images and blend with mask
-    # (what should be initial displacement?)
-    initial_d = np.array([0,0])
-    # using default from hw3
-    steps = 5  
-    # all image dimensions should be equal
-    '''
-    levels = 4 #int(np.floor(np.log2(min(cyl_images[0].shape[1], cyl_images[0].shape[0]))))
-    for i in range(0,len(cyl_images),2):
-          disp = pyramid_lucas_kanade(cyl_images[i], cyl_images[i+1], initial_d), levels, steps)
-          blend_with_mask(cyl_images[i], cyl_images[i+1], mask):
-    '''
+    pair_wise_disps = []
+    for i in range(len(proj_imgs)):
+        H = proj_imgs[i]
+        if i == len(proj_imgs) - 1:
+            I = proj_imgs[0]
+            initial_d = in_disps[0]
+        else:
+            I = proj_imgs[i + 1]
+            initial_d = in_disps[i + 1]
 
+        levels = 5
+
+        print(pyramid_lucas_kanade(H, I, initial_d, levels, 5))
 
