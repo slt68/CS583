@@ -303,7 +303,8 @@ if __name__ == "__main__":
     for i in range(len(images)):
         proj_img = project_to_cyl(images[i], s, k1, k2)
         proj_imgs.append(proj_img)
-        imageio.imwrite('{}_cyl.png'.format(img_fns[i]), proj_img.astype(np.uint8))
+        im_name = img_fns[i].split('.')
+        imageio.imwrite('{}_cyl.{}'.format(im_name[0], im_name[1]), proj_img.astype(np.uint8))
 
     pair_wise_disps = []
     for i in range(len(proj_imgs)):
@@ -317,5 +318,5 @@ if __name__ == "__main__":
 
         levels = 5
 
-        print(pyramid_lucas_kanade(H, I, initial_d, levels, 5))
+        pair_wise_disps.append(pyramid_lucas_kanade(H, I, initial_d, levels, 10))
 
