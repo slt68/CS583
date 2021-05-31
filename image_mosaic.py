@@ -2,7 +2,7 @@ import numpy as np
 import imageio
 import cv2 as CV
 from scipy.ndimage.filters import convolve
-
+import os
 from PIL import Image
 
 #alamkin: adding lucas kanade algo from hw3.py and blending from hw2
@@ -113,8 +113,8 @@ def lucas_kanade(H, I):
 
     displacement = np.linalg.solve(AtA, Atb)
 
-    # return the displacement and some intermediate data for unit testing..
-    return displacement, AtA, Atb
+    # return the displacement
+    return displacement
 
 
 def iterative_lucas_kanade(H, I, steps):
@@ -125,7 +125,7 @@ def iterative_lucas_kanade(H, I, steps):
         # Translate the H image by the current displacement (using the translate function above)
         trans_H = translate(H, disp)
         # run Lucas Kanade and update the displacement estimate
-        disp += lucas_kanade(trans_H, I)[0]
+        disp += lucas_kanade(trans_H, I)
     # Return the final displacement
     return disp
 
@@ -233,6 +233,16 @@ def load_image(filename):
 
 
 def project_to_cyl(image, s, k1, k2):
+
+    #alamkin - for some reason, image DSC00109.png has a shape = (480, 640, 4) 
+    #and needs to be downsized
+    new_image = np.zeros((image.shape[0], image.shape[1],3))
+    if image.shape[2] == 4:
+        for i in range(len(image)):
+            for j in range(len(image[i])):
+                new_image[i][j] = np.array(image[i][j][:3])
+        image = new_image        
+
     xc = image.shape[1] / 2
     yc = image.shape[0] / 2
 
@@ -260,11 +270,9 @@ def project_to_cyl(image, s, k1, k2):
     r2 = x_norm**2 + y_norm**2
 
     # apply radial distortion correction
-    # alamkin - shouldn't r2**2 be r2**4?
     x_distort = x_norm * (1 + k1 * r2 + k2 * r2**2)
     y_distort = y_norm * (1 + k1 * r2 + k2 * r2 ** 2)
 
-    #alamkin - should x and y be a (480,1) and not (480,2)?
     x = s * x_distort + xc
     y = s * y_distort + yc
 
@@ -273,6 +281,37 @@ def project_to_cyl(image, s, k1, k2):
     pts[:, :, 0] = y
 
     return bilinear_interp(image, pts)
+
+def stitch(proj_imgs, final_disps): 
+
+    #create image of final size
+    final_width = 4631 #int(np.ceil(proj_imgs[0].shape[1] + np.sum(np.absolute(final_disps[1:]), axis=0)[0]))
+    final_heigth = int(np.ceil(proj_imgs[0].shape[0] + (np.max(final_disps, axis = 0)[1] - np.min(final_disps, axis = 0)[1])))
+    res = np.zeros([final_heigth, final_width, 3])
+    start = 0
+        
+    for idx, img in enumerate(proj_imgs):
+        w = img.shape[1]
+        h = img.shape[0]
+
+        if idx == 0:
+            for i in range(h):
+                for j in range(w):
+                    res[i][j] = img[i][j]
+
+        else:
+            start = start + np.abs(int(np.ceil(final_disps[idx-1][0])))
+
+            if idx+1 == len(proj_imgs):
+                end = start + img.shape[1] + int(np.ceil(final_disps[idx][0]))
+            else:
+                end = start + img.shape[1]
+
+            for i in range(h):
+                for j in range(start,end):
+                    res[i][j] = img[i][j-start]
+
+    return res
 
     
 if __name__ == "__main__":
@@ -297,6 +336,7 @@ if __name__ == "__main__":
     k1 = float(camera_params[2])
     k2 = float(camera_params[3])
 
+    
     proj_imgs = []
     #alamkin - writing images to files first to ensure images are correctly reprojected
     #cyl_images = [project_to_cyl(x, s, xc, yc) for x in images]
@@ -305,17 +345,43 @@ if __name__ == "__main__":
         proj_imgs.append(proj_img)
         imageio.imwrite('{}_cyl.png'.format(img_fns[i]), proj_img.astype(np.uint8))
 
-    #alamkin - align each per of images and blend with mask
-    # (what should be initial displacement?)
-    initial_d = np.array([0,0])
-    # using default from hw3
-    steps = 5  
-    # all image dimensions should be equal
+
+    #alamkin - align each per of images 
     '''
-    levels = 4 #int(np.floor(np.log2(min(cyl_images[0].shape[1], cyl_images[0].shape[0]))))
-    for i in range(0,len(cyl_images),2):
-          disp = pyramid_lucas_kanade(cyl_images[i], cyl_images[i+1], initial_d), levels, steps)
-          blend_with_mask(cyl_images[i], cyl_images[i+1], mask):
+    proj_images_fns = []
+    proj_imgs = []
+    
+    for fn in os.listdir("./test_data"):
+        if fn.endswith(".png_cyl.png"):
+            proj_images_fns.append(fn)
+
+    proj_images_fns = sorted(proj_images_fns)
+
+    for fn in proj_images_fns:
+        proj_imgs.append(load_image("./test_data/" + fn))
     '''
+
+    steps = 5
+    levels = 4 
+    final_disps = []
+
+    for i in range(len(proj_imgs)):
+        final_disps.append(pyramid_lucas_kanade(proj_imgs[i], proj_imgs[(i+1)%15], in_disps[i], levels, steps))
+
+    #printing displacements for review
+    #for i in range(len(img_fns)):
+    #    print(img_fns[i] + ': ' + str(in_disps[i]) + ' --> ' + str(final_disps[i]))
+    
+    #alamkin - stich photos together
+    mosiac_b4_blend = stitch(proj_imgs, final_disps)
+
+    #writing intermediate image to file for presentation
+    imageio.imwrite('mosiac_before_blending.png', mosiac_b4_blend.astype(np.uint8))
+
+    #alamkin - blend resulting photo
+    #mosiac = blend_with_mask()
+    
+    #writing final image to file
+    #imageio.imwrite('final_mosiac.png'.format(img_fns[i]), mosiac.astype(np.uint8))
 
 
