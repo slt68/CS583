@@ -7,6 +7,7 @@ from PIL import Image
 
 #alamkin: adding lucas kanade algo from hw3.py and blending from hw2
 # -- BEGIN --
+
 def blend_with_mask(source, target, mask):
     """
     Blends the source image with the target image according to the mask.
@@ -231,6 +232,11 @@ def load_image(filename):
     im = Image.open(filename)
     return np.array(im)
 
+#
+# def reproject(img):
+#
+#     on_cyl = img / (np.sqrt(img[:, :, 0]**2 + img[:,:, 2]**2))
+#
 
 def project_to_cyl(image, s, k1, k2):
 
@@ -282,36 +288,31 @@ def project_to_cyl(image, s, k1, k2):
 
     return bilinear_interp(image, pts)
 
-def stitch(proj_imgs, final_disps): 
 
-    #create image of final size
-    final_width = 4631 #int(np.ceil(proj_imgs[0].shape[1] + np.sum(np.absolute(final_disps[1:]), axis=0)[0]))
+def stitch(proj_imgs, final_disps):
     final_heigth = int(np.ceil(proj_imgs[0].shape[0] + (np.max(final_disps, axis = 0)[1] - np.min(final_disps, axis = 0)[1])))
-    res = np.zeros([final_heigth, final_width, 3])
-    start = 0
-        
+    final = None
     for idx, img in enumerate(proj_imgs):
-        w = img.shape[1]
-        h = img.shape[0]
 
         if idx == 0:
-            for i in range(h):
-                for j in range(w):
-                    res[i][j] = img[i][j]
+            final = img
 
-        else:
-            start = start + np.abs(int(np.ceil(final_disps[idx-1][0])))
+        width = int(np.ceil(final.shape[1] + abs(final_disps[idx][0])))
 
-            if idx+1 == len(proj_imgs):
-                end = start + img.shape[1] + int(np.ceil(final_disps[idx][0]))
-            else:
-                end = start + img.shape[1]
+        mask = np.zeros([final_heigth, width, 3])
+        cur = mask.copy()
+        next = mask.copy()
 
-            for i in range(h):
-                for j in range(start,end):
-                    res[i][j] = img[i][j-start]
+        cur[:final.shape[0], :final.shape[1], :] = final
+        next_image = proj_imgs[(idx + 1) % 15]
 
-    return res
+        disp = final_disps[idx]
+
+        next[-next_image.shape[0]:, -next_image.shape[1]:, :] = next_image
+        mask[np.where(next > 0)] = 1
+        final = blend_with_mask(cur, next, mask)
+
+    return final
 
     
 if __name__ == "__main__":
@@ -343,7 +344,8 @@ if __name__ == "__main__":
     for i in range(len(images)):
         proj_img = project_to_cyl(images[i], s, k1, k2)
         proj_imgs.append(proj_img)
-        imageio.imwrite('{}_cyl.png'.format(img_fns[i]), proj_img.astype(np.uint8))
+        img_name = img_fns[i].split('.')
+        imageio.imwrite('{}_cyl.{}'.format(img_name[0], img_name[1]), proj_img.astype(np.uint8))
 
 
     #alamkin - align each per of images 
@@ -373,10 +375,10 @@ if __name__ == "__main__":
     #    print(img_fns[i] + ': ' + str(in_disps[i]) + ' --> ' + str(final_disps[i]))
     
     #alamkin - stich photos together
-    mosiac_b4_blend = stitch(proj_imgs, final_disps)
+    mosiac_after_blend = stitch(proj_imgs, final_disps)
 
     #writing intermediate image to file for presentation
-    imageio.imwrite('mosiac_before_blending.png', mosiac_b4_blend.astype(np.uint8))
+    imageio.imwrite('mosiac_after_blending.png', mosiac_after_blend.astype(np.uint8))
 
     #alamkin - blend resulting photo
     #mosiac = blend_with_mask()
